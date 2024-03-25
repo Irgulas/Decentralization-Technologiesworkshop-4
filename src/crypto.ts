@@ -149,38 +149,27 @@ export async function importSymKey(strKey: string): Promise<webcrypto.CryptoKey>
 
 // Encrypt a message using a symmetric key
 export async function symEncrypt(key: webcrypto.CryptoKey, data: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const encodedData = encoder.encode(data);
-  const iv = new Uint8Array(16);
-  const encrypted = await webcrypto.subtle.encrypt(
-      {
-        name: "AES-CBC",
-        iv: iv
-      },
-      key,
-      encodedData
-  );
-
-  return arrayBufferToBase64(encrypted);
+    const dataUint8Array = new TextEncoder().encode(data);
+    const iv = webcrypto.getRandomValues(new Uint8Array(16)); // Ajusté pour utiliser webcrypto
+    const encryptedData = await webcrypto.subtle.encrypt(
+        { name: "AES-CBC", iv },
+        key,
+        dataUint8Array
+    );
+    const concatenatedData = new Uint8Array([...iv, ...new Uint8Array(encryptedData)]);
+    return arrayBufferToBase64(concatenatedData.buffer);
 }
 
 // Decrypt a message using a symmetric key
-export async function symDecrypt(
-    strKey: string,
-    encryptedDataWithIv: string
-): Promise<string> {
-  const key = await importSymKey(strKey);
-  const encryptedDataWithIvBuffer = base64ToArrayBuffer(encryptedDataWithIv);
-  const iv = new Uint8Array(16);
-  //const dataBuffer = encryptedDataWithIvBuffer.slice(12);
-  const decrypted = await webcrypto.subtle.decrypt(
-      {
-        name: "AES-CBC",
-        iv: iv
-      },
-      key,
-      encryptedDataWithIvBuffer
-  );
-  return new TextDecoder().decode(decrypted);
+export async function symDecrypt(strKey: string, encryptedData: string): Promise<string> {
+    const key = await importSymKey(strKey);
+    const encryptedDataBuffer = base64ToArrayBuffer(encryptedData);
+    const iv = encryptedDataBuffer.slice(0, 16);
+    const encryptedContent = encryptedDataBuffer.slice(16); // Séparation correcte de l'IV et des données chiffrées
+    const decryptedDataBuffer = await webcrypto.subtle.decrypt(
+        { name: "AES-CBC", iv },
+        key,
+        encryptedContent // Utilisation des données chiffrées sans l'IV
+    );
+    return new TextDecoder().decode(decryptedDataBuffer);
 }
-
